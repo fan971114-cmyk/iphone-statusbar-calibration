@@ -62,12 +62,11 @@ xcrun simctl bootstatus "$UDID" -b
   xcrun simctl spawn "$UDID" defaults read com.apple.springboard ShowBatteryPercentage || true
 } > "$ARTIFACTS/status-preferences.txt" 2>&1
 
-# Capture the real Settings > Battery page before launching the probe app.
-# This tells us whether iOS 26 Simulator exposes a user-facing percentage
-# switch; it is evidence for the next step, not a substitute for that switch.
+# Capture the unmodified SpringBoard status bar before applying any override.
+# This is the control sample for the simulator's real battery percentage.
 xcrun simctl openurl "$UDID" "App-Prefs:root=BATTERY_USAGE" || true
 sleep 2
-xcrun simctl io "$UDID" screenshot "$ARTIFACTS/settings-battery.png"
+xcrun simctl io "$UDID" screenshot "$ARTIFACTS/baseline-springboard.png"
 
 xcrun simctl install "$UDID" "$APP_DIR"
 xcrun simctl launch "$UDID" com.codex.statusbarprobe
@@ -83,7 +82,7 @@ capture_sample() {
   xcrun simctl status_bar "$UDID" override \
     --time "$time_value" \
     --cellularMode active \
-    --cellularBars 1 \
+    --cellularBars 4 \
     --wifiMode active \
     --wifiBars 3 \
     --batteryState discharging \
@@ -93,9 +92,9 @@ capture_sample() {
   sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
 }
 
-capture_sample "01:33" 50
-capture_sample "13:03" 73
-capture_sample "23:26" 95
+capture_sample "11:11" 0
+capture_sample "13:03" 50
+capture_sample "23:59" 100
 
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl shutdown "$UDID"
