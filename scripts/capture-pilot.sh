@@ -92,7 +92,6 @@ capture_sample() {
   sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
 }
 
-capture_sample "16:49" 46
 capture_sample "18:47" 94
 
 xcrun simctl status_bar "$UDID" clear
