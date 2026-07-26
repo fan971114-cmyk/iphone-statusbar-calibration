@@ -33,10 +33,34 @@ echo "$UDID" | tee "$ARTIFACTS/simulator-udid.txt"
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b
 
-# These preference keys are harmless on the disposable runner. The status bar
-# override remains the source of the displayed battery level.
+# Match the user's Chinese-region iPhone and force the system status bar to use
+# 24-hour time. The disposable simulator must reboot after these writes so
+# SpringBoard reloads both the locale and battery-percentage preferences.
+xcrun simctl spawn "$UDID" defaults write NSGlobalDomain AppleLocale -string "zh_CN"
+xcrun simctl spawn "$UDID" defaults write NSGlobalDomain AppleLanguages -array "zh-Hans-CN"
+xcrun simctl spawn "$UDID" defaults write NSGlobalDomain AppleICUForce24HourTime -bool true
 xcrun simctl spawn "$UDID" defaults write com.apple.control-center BatteryShowPercentage -bool true || true
 xcrun simctl spawn "$UDID" defaults write com.apple.springboard SBShowBatteryPercentage -bool true || true
+xcrun simctl spawn "$UDID" defaults write com.apple.springboard ShowBatteryPercentage -bool true || true
+
+xcrun simctl shutdown "$UDID"
+xcrun simctl boot "$UDID"
+xcrun simctl bootstatus "$UDID" -b
+
+{
+  echo "AppleLocale:"
+  xcrun simctl spawn "$UDID" defaults read NSGlobalDomain AppleLocale || true
+  echo "AppleLanguages:"
+  xcrun simctl spawn "$UDID" defaults read NSGlobalDomain AppleLanguages || true
+  echo "AppleICUForce24HourTime:"
+  xcrun simctl spawn "$UDID" defaults read NSGlobalDomain AppleICUForce24HourTime || true
+  echo "BatteryShowPercentage:"
+  xcrun simctl spawn "$UDID" defaults read com.apple.control-center BatteryShowPercentage || true
+  echo "SBShowBatteryPercentage:"
+  xcrun simctl spawn "$UDID" defaults read com.apple.springboard SBShowBatteryPercentage || true
+  echo "ShowBatteryPercentage:"
+  xcrun simctl spawn "$UDID" defaults read com.apple.springboard ShowBatteryPercentage || true
+} > "$ARTIFACTS/status-preferences.txt" 2>&1
 
 xcrun simctl install "$UDID" "$APP_DIR"
 xcrun simctl launch "$UDID" com.codex.statusbarprobe
@@ -68,4 +92,3 @@ capture_sample "23:26" 95
 
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl shutdown "$UDID"
-
