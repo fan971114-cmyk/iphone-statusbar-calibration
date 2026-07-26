@@ -23,7 +23,7 @@ jobs:
           xcodebuild -version | tee artifacts/xcode-version.txt
           xcrun simctl list runtimes | tee artifacts/simulator-runtimes.txt
           xcrun simctl list devices available | tee artifacts/simulator-devices.txt
-          xcrun simctl help status_bar > artifacts/status-bar-help.txt
+          xcrun simctl help status_bar > artifacts/status-bar-help.txt 2>&1
 
       - name: Capture three calibration samples
         shell: bash
@@ -38,4 +38,3 @@ jobs:
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
-
