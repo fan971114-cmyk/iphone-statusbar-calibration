@@ -63,11 +63,11 @@ xcrun simctl bootstatus "$UDID" -b
 } > "$ARTIFACTS/status-preferences.txt" 2>&1
 
 # Capture the unmodified SpringBoard status bar before applying any override.
-# This is the control sample for the simulator's real battery percentage.
-xcrun simctl openurl "$UDID" "App-Prefs:root=BATTERY_USAGE" || true
-sleep 2
+# This is only a control sample; do not launch Settings here because iOS may
+# keep a back-to-Settings breadcrumb in the next app's status bar.
+xcrun simctl status_bar "$UDID" clear
+sleep 1
 xcrun simctl io "$UDID" screenshot "$ARTIFACTS/baseline-springboard.png"
-xcrun simctl terminate "$UDID" com.apple.Preferences || true
 
 xcrun simctl install "$UDID" "$APP_DIR"
 xcrun simctl launch "$UDID" com.codex.statusbarprobe
@@ -81,10 +81,14 @@ capture_named_sample() {
   xcrun simctl status_bar "$UDID" clear
   xcrun simctl status_bar "$UDID" override "$@"
   xcrun simctl status_bar "$UDID" list > "$ARTIFACTS/status-list-${name}.txt" 2>&1 || true
-  sleep 1
+  sleep 2
   xcrun simctl io "$UDID" screenshot "$output"
   sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
-  sips --cropOffset 0 0 --cropToHeightWidth 180 1206 "$output" --out "$ARTIFACTS/top-${name}.png" >/dev/null
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-time-${name}.png" 120 35 220 95
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-signal-${name}.png" 850 45 90 80
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-wifi-${name}.png" 930 45 90 80
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-battery-${name}.png" 1005 45 130 80
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-right-${name}.png" 835 40 315 95
 }
 
 COMMON_STATUS_ARGS=(
@@ -95,11 +99,10 @@ COMMON_STATUS_ARGS=(
   --wifiBars 3
 )
 
-capture_named_sample "control-no-battery-override" "${COMMON_STATUS_ARGS[@]}"
-capture_named_sample "level-only-46" "${COMMON_STATUS_ARGS[@]}" --batteryLevel 46
-capture_named_sample "discharging-46" "${COMMON_STATUS_ARGS[@]}" --batteryState discharging --batteryLevel 46
-capture_named_sample "charging-46" "${COMMON_STATUS_ARGS[@]}" --batteryState charging --batteryLevel 46
-capture_named_sample "charged-46" "${COMMON_STATUS_ARGS[@]}" --batteryState charged --batteryLevel 46
+capture_named_sample "project-a-preview-19-26-battery-46" \
+  "${COMMON_STATUS_ARGS[@]}" \
+  --batteryState discharging \
+  --batteryLevel 46
 
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl shutdown "$UDID"
