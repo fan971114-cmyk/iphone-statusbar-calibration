@@ -4,6 +4,12 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 ARTIFACTS="$ROOT/artifacts"
 mkdir -p "$ARTIFACTS"
+mkdir -p \
+  "$ARTIFACTS/metadata" \
+  "$ARTIFACTS/previews" \
+  "$ARTIFACTS/time" \
+  "$ARTIFACTS/battery" \
+  "$ARTIFACTS/icons"
 
 APP_DIR="$(bash "$ROOT/scripts/build-probe-app.sh")"
 
@@ -29,7 +35,7 @@ print(sorted(candidates)[-1][1])
 '
 )"
 
-echo "$UDID" | tee "$ARTIFACTS/simulator-udid.txt"
+echo "$UDID" | tee "$ARTIFACTS/metadata/simulator-udid.txt"
 xcrun simctl boot "$UDID" 2>/dev/null || true
 xcrun simctl bootstatus "$UDID" -b
 
@@ -62,12 +68,15 @@ xcrun simctl bootstatus "$UDID" -b
   xcrun simctl spawn "$UDID" defaults read com.apple.springboard ShowBatteryPercentage || true
 } > "$ARTIFACTS/status-preferences.txt" 2>&1
 
+CROP_TOOL="$ARTIFACTS/metadata/crop-png"
+swiftc "$ROOT/scripts/crop-png.swift" -o "$CROP_TOOL"
+
 # Capture the unmodified SpringBoard status bar before applying any override.
 # This is only a control sample; do not launch Settings here because iOS may
 # keep a back-to-Settings breadcrumb in the next app's status bar.
 xcrun simctl status_bar "$UDID" clear
 sleep 1
-xcrun simctl io "$UDID" screenshot "$ARTIFACTS/baseline-springboard.png"
+xcrun simctl io "$UDID" screenshot "$ARTIFACTS/previews/baseline-springboard.png"
 
 xcrun simctl install "$UDID" "$APP_DIR"
 xcrun simctl launch "$UDID" com.codex.statusbarprobe
@@ -76,19 +85,19 @@ sleep 2
 capture_named_sample() {
   local name="$1"
   shift
-  local output="$ARTIFACTS/full-${name}.png"
+  local output="$ARTIFACTS/previews/full-${name}.png"
 
   xcrun simctl status_bar "$UDID" clear
   xcrun simctl status_bar "$UDID" override "$@"
-  xcrun simctl status_bar "$UDID" list > "$ARTIFACTS/status-list-${name}.txt" 2>&1 || true
+  xcrun simctl status_bar "$UDID" list > "$ARTIFACTS/metadata/status-list-${name}.txt" 2>&1 || true
   sleep 2
   xcrun simctl io "$UDID" screenshot "$output"
-  sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-time-${name}.png" 145 35 190 95
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-signal-${name}.png" 850 45 90 80
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-wifi-${name}.png" 930 45 90 80
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-battery-${name}.png" 1005 45 130 80
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-right-${name}.png" 835 40 315 95
+  sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/metadata/image-dimensions.txt"
+  "$CROP_TOOL" "$output" "$ARTIFACTS/previews/crop-time-${name}.png" 145 35 190 95
+  "$CROP_TOOL" "$output" "$ARTIFACTS/icons/signal-full.png" 850 45 90 80
+  "$CROP_TOOL" "$output" "$ARTIFACTS/icons/wifi-full.png" 930 45 90 80
+  "$CROP_TOOL" "$output" "$ARTIFACTS/previews/crop-battery-${name}.png" 1005 45 130 80
+  "$CROP_TOOL" "$output" "$ARTIFACTS/previews/crop-right-${name}.png" 835 40 315 95
 }
 
 COMMON_STATUS_ARGS=(
@@ -103,6 +112,95 @@ capture_named_sample "project-a-preview-19-26-battery-46" \
   "${COMMON_STATUS_ARGS[@]}" \
   --batteryState discharging \
   --batteryLevel 46
+
+TMP_SCREEN="$ARTIFACTS/metadata/tmp-full.png"
+SETTLE_SECONDS="${STATUS_POOL_SETTLE_SECONDS:-0.35}"
+
+capture_crop() {
+  local output="$1"
+  local x="$2"
+  local y="$3"
+  local width="$4"
+  local height="$5"
+
+  xcrun simctl io "$UDID" screenshot "$TMP_SCREEN" >/dev/null
+  "$CROP_TOOL" "$TMP_SCREEN" "$output" "$x" "$y" "$width" "$height"
+}
+
+echo "Capturing Project A time crops: 11:00-23:59" | tee "$ARTIFACTS/metadata/time-capture-log.txt"
+for hour in $(seq 11 23); do
+  for minute in $(seq 0 59); do
+    label="$(printf "%02d:%02d" "$hour" "$minute")"
+    name="$(printf "time-%02d%02d.png" "$hour" "$minute")"
+    xcrun simctl status_bar "$UDID" override \
+      --time "$label" \
+      --cellularMode active \
+      --cellularBars 4 \
+      --wifiMode active \
+      --wifiBars 3 \
+      --batteryState discharging \
+      --batteryLevel 46
+    sleep "$SETTLE_SECONDS"
+    capture_crop "$ARTIFACTS/time/$name" 145 35 190 95
+    echo "$label $name" >> "$ARTIFACTS/metadata/time-capture-log.txt"
+  done
+done
+
+echo "Capturing Project A battery crops: 0-100" | tee "$ARTIFACTS/metadata/battery-capture-log.txt"
+for level in $(seq 0 100); do
+  name="$(printf "battery-%03d.png" "$level")"
+  xcrun simctl status_bar "$UDID" override \
+    --time "19:26" \
+    --cellularMode active \
+    --cellularBars 4 \
+    --wifiMode active \
+    --wifiBars 3 \
+    --batteryState discharging \
+    --batteryLevel "$level"
+  sleep "$SETTLE_SECONDS"
+  capture_crop "$ARTIFACTS/battery/$name" 1005 45 130 80
+  echo "$level $name" >> "$ARTIFACTS/metadata/battery-capture-log.txt"
+done
+
+rm -f "$TMP_SCREEN"
+
+cat > "$ARTIFACTS/manifest.json" <<'JSON'
+{
+  "project": "A",
+  "device": "iPhone 17 Pro",
+  "background": "#EDEDED",
+  "coordinateSpace": {
+    "width": 1206,
+    "height": 2622
+  },
+  "time": {
+    "range": "11:00-23:59",
+    "count": 780,
+    "crop": {
+      "x": 145,
+      "y": 35,
+      "width": 190,
+      "height": 95
+    }
+  },
+  "battery": {
+    "range": "0-100",
+    "count": 101,
+    "crop": {
+      "x": 1005,
+      "y": 45,
+      "width": 130,
+      "height": 80
+    },
+    "sourceRule": "Use the exact simulator crop for each level; do not redraw digits or fill."
+  },
+  "icons": {
+    "signal": "always full",
+    "wifi": "captured full, tool may show or hide later",
+    "silent": "not captured by simctl status_bar in this workflow"
+  }
+}
+JSON
 
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl shutdown "$UDID"
