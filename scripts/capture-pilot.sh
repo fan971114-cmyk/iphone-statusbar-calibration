@@ -84,7 +84,7 @@ capture_named_sample() {
   sleep 2
   xcrun simctl io "$UDID" screenshot "$output"
   sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
-  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-time-${name}.png" 120 35 220 95
+  swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-time-${name}.png" 145 35 190 95
   swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-signal-${name}.png" 850 45 90 80
   swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-wifi-${name}.png" 930 45 90 80
   swift "$ROOT/scripts/crop-png.swift" "$output" "$ARTIFACTS/crop-battery-${name}.png" 1005 45 130 80
