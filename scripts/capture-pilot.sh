@@ -67,32 +67,39 @@ xcrun simctl bootstatus "$UDID" -b
 xcrun simctl openurl "$UDID" "App-Prefs:root=BATTERY_USAGE" || true
 sleep 2
 xcrun simctl io "$UDID" screenshot "$ARTIFACTS/baseline-springboard.png"
+xcrun simctl terminate "$UDID" com.apple.Preferences || true
 
 xcrun simctl install "$UDID" "$APP_DIR"
 xcrun simctl launch "$UDID" com.codex.statusbarprobe
 sleep 2
 
-capture_sample() {
-  local time_value="$1"
-  local battery_value="$2"
-  local file_time="${time_value/:/-}"
-  local output="$ARTIFACTS/full-${file_time}-battery-${battery_value}.png"
+capture_named_sample() {
+  local name="$1"
+  shift
+  local output="$ARTIFACTS/full-${name}.png"
 
   xcrun simctl status_bar "$UDID" clear
-  xcrun simctl status_bar "$UDID" override \
-    --time "$time_value" \
-    --cellularMode active \
-    --cellularBars 4 \
-    --wifiMode active \
-    --wifiBars 3 \
-    --batteryState discharging \
-    --batteryLevel "$battery_value"
+  xcrun simctl status_bar "$UDID" override "$@"
+  xcrun simctl status_bar "$UDID" list > "$ARTIFACTS/status-list-${name}.txt" 2>&1 || true
   sleep 1
   xcrun simctl io "$UDID" screenshot "$output"
   sips -g pixelWidth -g pixelHeight "$output" >> "$ARTIFACTS/image-dimensions.txt"
+  sips --cropOffset 0 0 --cropToHeightWidth 180 1206 "$output" --out "$ARTIFACTS/top-${name}.png" >/dev/null
 }
 
-capture_sample "18:47" 94
+COMMON_STATUS_ARGS=(
+  --time "19:26"
+  --cellularMode active
+  --cellularBars 4
+  --wifiMode active
+  --wifiBars 3
+)
+
+capture_named_sample "control-no-battery-override" "${COMMON_STATUS_ARGS[@]}"
+capture_named_sample "level-only-46" "${COMMON_STATUS_ARGS[@]}" --batteryLevel 46
+capture_named_sample "discharging-46" "${COMMON_STATUS_ARGS[@]}" --batteryState discharging --batteryLevel 46
+capture_named_sample "charging-46" "${COMMON_STATUS_ARGS[@]}" --batteryState charging --batteryLevel 46
+capture_named_sample "charged-46" "${COMMON_STATUS_ARGS[@]}" --batteryState charged --batteryLevel 46
 
 xcrun simctl status_bar "$UDID" clear
 xcrun simctl shutdown "$UDID"
