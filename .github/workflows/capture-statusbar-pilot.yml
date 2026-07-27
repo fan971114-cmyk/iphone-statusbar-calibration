@@ -1,4 +1,4 @@
-name: Capture iPhone 17 Pro status bar pilot
+name: Capture iPhone 17 Pro Project A status bar pool
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   capture:
     runs-on: macos-26
-    timeout-minutes: 30
+    timeout-minutes: 180
 
     steps:
       - name: Check out calibration package
@@ -25,16 +25,16 @@ jobs:
           xcrun simctl list devices available | tee artifacts/simulator-devices.txt
           xcrun simctl help status_bar > artifacts/status-bar-help.txt 2>&1
 
-      - name: Capture three calibration samples
+      - name: Capture Project A status bar asset pool
         shell: bash
         run: |
           set -euo pipefail
           bash scripts/capture-pilot.sh
 
-      - name: Upload calibration samples
+      - name: Upload Project A status bar asset pool
         uses: actions/upload-artifact@v4
         with:
-          name: iphone-17-pro-statusbar-pilot
+          name: iphone-17-pro-project-a-statusbar-pool
           path: artifacts/
           if-no-files-found: error
           retention-days: 7
