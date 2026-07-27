@@ -131,9 +131,10 @@ echo "Capturing Project A time crops: 11:00-23:59" | tee "$ARTIFACTS/metadata/ti
 for hour in $(seq 11 23); do
   for minute in $(seq 0 59); do
     label="$(printf "%02d:%02d" "$hour" "$minute")"
+    override_time="$(printf "2026-07-27T%02d:%02d:00" "$hour" "$minute")"
     name="$(printf "time-%02d%02d.png" "$hour" "$minute")"
     xcrun simctl status_bar "$UDID" override \
-      --time "$label" \
+      --time "$override_time" \
       --cellularMode active \
       --cellularBars 4 \
       --wifiMode active \
