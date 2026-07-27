@@ -131,19 +131,27 @@ echo "Capturing Project A time crops: 11:00-23:59" | tee "$ARTIFACTS/metadata/ti
 for hour in $(seq 11 23); do
   for minute in $(seq 0 59); do
     label="$(printf "%02d:%02d" "$hour" "$minute")"
-    override_time="$(printf "2026-07-27T%02d:%02d:00" "$hour" "$minute")"
+    # This simctl build rejects exact HH:00 strings. The user's batch rule
+    # permits a 3-minute status-bar time tolerance, so map HH:00 to HH:01.
+    override_time="$label"
+    if [[ "$minute" -eq 0 ]]; then
+      override_time="$(printf "%02d:01" "$hour")"
+    fi
     name="$(printf "time-%02d%02d.png" "$hour" "$minute")"
-    xcrun simctl status_bar "$UDID" override \
+    if ! xcrun simctl status_bar "$UDID" override \
       --time "$override_time" \
       --cellularMode active \
       --cellularBars 4 \
       --wifiMode active \
       --wifiBars 3 \
       --batteryState discharging \
-      --batteryLevel 46
+      --batteryLevel 46; then
+      echo "$label failed with override $override_time" >> "$ARTIFACTS/metadata/time-capture-failures.txt"
+      continue
+    fi
     sleep "$SETTLE_SECONDS"
     capture_crop "$ARTIFACTS/time/$name" 145 35 190 95
-    echo "$label $name" >> "$ARTIFACTS/metadata/time-capture-log.txt"
+    echo "$label actual=$override_time $name" >> "$ARTIFACTS/metadata/time-capture-log.txt"
   done
 done
 
@@ -177,6 +185,7 @@ cat > "$ARTIFACTS/manifest.json" <<'JSON'
   "time": {
     "range": "11:00-23:59",
     "count": 780,
+    "tolerance": "Target HH:00 crops use the real HH:01 simulator crop because this simctl build rejects exact HH:00 override strings.",
     "crop": {
       "x": 145,
       "y": 35,
